@@ -383,26 +383,17 @@ significance of female characters within the film?</p></li>
 ## 6     5  2013 tt13… 47 R… men   men        FAIL   2.25e8 38362475   1.46e8 2013…
 ## # ℹ 5 more variables: `budget_2013$` &lt;dbl&gt;, `domgross_2013$` &lt;dbl&gt;,
 ## #   `intgross_2013$` &lt;dbl&gt;, `period code` &lt;dbl&gt;, `decade code` &lt;dbl&gt;</code></pre>
-<p>Creator: Hannah Anderson and Matt Daniels, The Pudding</p>
-<p><a href="https://melaniewalsh.github.io/Intro-Cultural-Analytics/00-Datasets/00-Datasets.html" class="uri">https://melaniewalsh.github.io/Intro-Cultural-Analytics/00-Datasets/00-Datasets.html</a></p>
-<p>This CSV file is a consolidated and slightly modified version of data
-shared by Hannah Anderson and Matt Daniels for their Pudding article,
-“Film Dialogue from 2,000 screenplays, Broken Down by Gender and Age”.
-The original datasets can be found on GitHub here.</p>
-<p>For 2,000 films from 1925 to 2015, the dataset includes information
-about characters’ names, genders, ages, how many words they spoke in
-each film, as well as the release year of each film and how much money
-the film grossed. Anderson and Daniels determined character age and
-gender (which they code as binary) based on corresponding IMDB
-information for actors.</p>
-<p>the data has limitations in accuracy as recognized by the authors,
-since some characters from movies are excluded due to 1.) the process of
-parsing erroneously excluded the character, 2.) The script did not have
-the character but the film did, or 3). this is a minor character which
-was excluded from the study.</p>
-<p>I wanted to explore more in depth the budget allocated for movies
-which dialogue is dominated by men vs women. However I am having trouble
-plotting this variables.</p>
+<p>Author: Carolee Mitchell via <a href="https://data.world/carolee" class="uri">https://data.world/carolee</a></p>
+<p><a href="https://www.kaggle.com/datasets/thedevastator/box-office-performance-of-movies-with-female-lea?resource=download" class="uri">https://www.kaggle.com/datasets/thedevastator/box-office-performance-of-movies-with-female-lea?resource=download</a></p>
+<p>This dataset explores the impact of gender on box office success. It
+looks at data from films released between 1970 and 2013, including their
+budgets, domestic and international gross earnings, and their pass/fail
+status on the Bechdel Test - a benchmark measuring gender biases in
+movies.</p>
+<p>I believe I could join these two data sets by the title of the
+movies, as they both have a title column. It would be interesting to see
+how many movies exist in both data sets and would work to create a new
+joint dataset.</p>
 <pre class="r"><code>library(GGally)</code></pre>
 <pre><code>## Loading required package: ggplot2</code></pre>
 <pre><code>## Registered S3 method overwritten by &#39;GGally&#39;:
@@ -439,17 +430,26 @@ ggplot(data = movies, aes(x = binary, y = &#39;budget_2013$&#39;)) +
 ## 5 The Br…         1995 Madge     woman    190                 0.0297    46   142
 ## 6 The Br…         1995 Michael … man      723                 0.113     38   142
 ## # ℹ 1 more variable: script_id &lt;dbl&gt;</code></pre>
-<p>Author: Carolee Mitchell via <a href="https://data.world/carolee" class="uri">https://data.world/carolee</a></p>
-<p><a href="https://www.kaggle.com/datasets/thedevastator/box-office-performance-of-movies-with-female-lea?resource=download" class="uri">https://www.kaggle.com/datasets/thedevastator/box-office-performance-of-movies-with-female-lea?resource=download</a></p>
-<p>This dataset explores the impact of gender on box office success. It
-looks at data from films released between 1970 and 2013, including their
-budgets, domestic and international gross earnings, and their pass/fail
-status on the Bechdel Test - a benchmark measuring gender biases in
-movies.</p>
-<p>I believe I could join these two data sets by the title of the
-movies, as they both have a title column. It would be interesting to see
-how many movies exist in both data sets and would work to create a new
-joint dataset.</p>
+<p>Creator: Hannah Anderson and Matt Daniels, The Pudding</p>
+<p><a href="https://melaniewalsh.github.io/Intro-Cultural-Analytics/00-Datasets/00-Datasets.html" class="uri">https://melaniewalsh.github.io/Intro-Cultural-Analytics/00-Datasets/00-Datasets.html</a></p>
+<p>This CSV file is a consolidated and slightly modified version of data
+shared by Hannah Anderson and Matt Daniels for their Pudding article,
+“Film Dialogue from 2,000 screenplays, Broken Down by Gender and Age”.
+The original datasets can be found on GitHub here.</p>
+<p>For 2,000 films from 1925 to 2015, the dataset includes information
+about characters’ names, genders, ages, how many words they spoke in
+each film, as well as the release year of each film and how much money
+the film grossed. Anderson and Daniels determined character age and
+gender (which they code as binary) based on corresponding IMDB
+information for actors.</p>
+<p>the data has limitations in accuracy as recognized by the authors,
+since some characters from movies are excluded due to 1.) the process of
+parsing erroneously excluded the character, 2.) The script did not have
+the character but the film did, or 3). this is a minor character which
+was excluded from the study.</p>
+<p>I wanted to explore more in depth the budget allocated for movies
+which dialogue is dominated by men vs women. However I am having trouble
+plotting this variables.</p>
 <pre class="r"><code>library(dplyr)</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;dplyr&#39;</code></pre>
