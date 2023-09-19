@@ -1,0 +1,105 @@
+---
+title: "Part 2 DS"
+output: html_document
+date: "2023-09-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Potential Research Questions
+
+The difference in revenue of movies with male and female protagonist roles? Screen time of male vs female characters in films with female protagonists? Budget differences in male/female protagonists [or male/female audiences]? Movie duration vs female characters?
+
+```{r}
+library(tidytuesdayR)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(stringr)
+```
+
+```{r}
+imbd <- read.csv("/Users/mattu/Desktop/Projects in Data Science /Input/imdb_movies.csv")
+```
+#Data source (who created it?)
+I found this data on Kaggle and this is the user that created the dataset: Ashpal Singh1525
+
+#Data description - who's in it and what’s being measured?
+It has 12 variables ranging from genre to budget for different IMBD movies. There are over 10000 observations and lots of categorical and numeric variables. It measures revenue, budget, score, and various different characteristics of the movies. 
+
+#Data limitations (eg, are the data recent? do they contain all the variables you might want?)
+One of the biggest limitations is that the data do not contain one of our most important variables which is gender. Ideally, we could have a variable like lead actor male or female, or we would have a variable that says if a movie was meant for a traditionally male vs female audience. The data is very recent so that is not a concern for us.
+
+#Show the variable names. Describe the most useful / interesting ones.
+```{r}
+ls(imbd)
+```
+The most useful ones for our analysis would be budget, genre, revenue, and even crew. I think that if we were able to break apart crew (which would be very time intensive) we could create our own variable that has female vs male actors. That way we could do more with gender. Budget is pretty straightforward, it's how much money a movie had to produce. Genre is the where the movie falls in type of genre for example "romance." Revenue is how much money the movie generated, not profit. 
+
+
+```{r}
+unique(imbd$genre)
+```
+
+```{r}
+imbd %>% 
+  filter(grepl('Romance', genre)) %>% 
+  ggplot(aes(x = budget_x, y = revenue))+
+  geom_point()+
+  theme_minimal()+
+  scale_x_continuous(labels = scales::comma)+
+  scale_y_continuous(labels = scales::comma)+
+  ggtitle("Romance Genre Budget and Revenue")
+
+```
+
+```{r}
+imbd %>% 
+  filter(!str_detect(genre, 'Romance')) %>% 
+  ggplot(aes(x = budget_x, y = revenue))+
+  geom_point()+
+  theme_minimal()+
+  scale_x_continuous(labels = scales::comma)+
+  scale_y_continuous(labels = scales::comma)+
+  ggtitle("Genre's Not Including Romance Budget and Revenue")
+```
+
+```{r}
+GOT <- read.csv("/Users/mattu/Desktop/Projects in Data Science /Input/GOT_screentimes.csv")
+```
+
+#Data source (who created it?)
+I found this data on Kaggle and this is the user that created the dataset: ninewheels0
+
+#Data description - who's in it and what’s being measured?
+It has 7 variables which measure the actor/actress, their character name, and most importantly the total screen time and number of episodes that they are a part of. 
+
+#Data limitations (eg, are the data recent? do they contain all the variables you might want?)
+One of the biggest limitations is that the data do not contain one of our most important variables which is gender. Ideally, we could have a variable like lead actor male or female, or we would have a variable that says if a movie was meant for a traditionally male vs female audience. However, we can still visualize and even make our own variable for gender based on what we deem is necessary. GOT is a very recent show but also goes back enough years that we have a nice time range to work with. It would also be nice to have net pay per actor. 
+
+#Show the variable names. Describe the most useful / interesting ones.
+```{r}
+ls(imbd)
+```
+The most useful ones for our analysis would be name, screentime, and episodes. With these three variables plus another dataset that we could find that has some salary information we could really tell a story about gender in movies and tv shows. Name has the character name on the show, screentime is a total amount of screen time, and episodes is the amount of episodes that the characters were part of. 
+
+#Potential Merges
+I could see the character names/actors as a potential way to merge on the IMBD dataset. On the GOT, it would be a lot harder, but maybe a way to join would be through name. I would have to see what are the unique identifiers for each of the datasets and the ones that I want to join by and then I could really have a more clear idea about how to join them. 
+
+```{r}
+GOT %>% 
+  slice(1:20) %>% 
+  ggplot(aes(x = screentime, y = reorder(name, screentime)))+
+  geom_col(fill = "red", color = "black")+
+  theme_minimal()+
+  xlab("Screen Time")+
+  ylab("Character Name")+
+  ggtitle("Amount of Screen Time")
+```
+
+#Potential Dataset but will talk with group on tuesday about
+```{r}
+oscars <- read.csv("/Users/mattu/Desktop/Projects in Data Science /Input/movies.csv")
+```
