@@ -1,0 +1,179 @@
+---
+title: "Gender Roles in Media"
+subtitle: "Amalin Sorajja"
+author: "Partners: Clarisa Gomez Faria and Mateo Useche"
+date: "Due 19 Sept"
+output: html_document
+---
+Potential Research Questions:
+> a. The difference in revenue of movies with male and female protagonist roles.
+b. Screen time of male vs. female characters in films with female protagonists.
+c. Budget difference in male/female protagonists [or male/female audiences].
+d. Movie durations differences.
+
+```{r}
+library(ggplot2)
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(ggmosaic)
+```
+
+```{r}
+# I really wanted to use this dataset because it had a lot of information on the gender identities of characters as well as writers and directors of 45,000 movies released on or before July 2017. The data was available in the form of a stringified JSON object, which I wanted to parse the data from, but the end of the string in each row was missing the end bracket. I ran into a lot of errors and couldn't get the data to parse because of the improper structure. Never worked with a JSON object before so maybe there is some solution to extract columns that I don't know about. 
+movies_metadata <- read.csv("credits.csv")
+```
+
+```{r}
+imdb <- read.csv("imdb_top_1000.csv")
+head(imdb)
+```
+
+This dataset has information on top 1000 movies and TV shows from IMDb, collected by Harshit Shankhdhar, scraping from the IMDb website. It uses IMDb rating for ranking, which is determined by IMDb registered users casting a vote (1 to 10) for each realeased title in the database. It does not have the gender identities of the directors or the top cast members, which would be ideal for the questions we are trying to answer. The dataset includes variables of the title, release year, duration, genre, IMDb rating, meta score (weighted average of many reviews coming from reputed critics), director, {Star1,Star2,Star3,Star4}, and revenue. A couple ideas I have are visualizing the top 10 movies/shows ranked, and looking at the gender identities of the directors and cast manually since we don't have a gender variable. Also looking at top 10 highest revenue and perhaps duration. 
+
+```{r}
+imdbtop10 <- imdb %>% 
+  arrange(desc(IMDB_Rating)) %>%
+  slice(1:10)
+
+metatop12 <- imdb %>%
+  arrange(desc(Meta_score)) %>%
+  slice(1:12)
+
+imdbrevtop10 <- imdb %>%
+  mutate(money = as.numeric(gsub(",","", Gross))) %>%
+  arrange(desc(money)) %>%
+  slice(1:10)
+
+durationtop10 <- imdb %>%
+  mutate(duration = as.numeric(gsub("min","",Runtime))) %>%
+  arrange(desc(duration)) %>%
+  slice(1:10)
+
+# IMDb top 10 ratings has all male directors
+imdbtop10 %>% 
+  ggplot(aes(x = IMDB_Rating, y = fct_reorder(Series_Title, desc(IMDB_Rating)), fill = Director)) +
+  geom_col() +
+  labs(title = "Top 10 IMDb Rated Movies and Their Directors") +
+  xlab("IMDb Rating") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+# IMDb top 10 ratings has all male protagonists
+imdbtop10 %>% 
+  ggplot(aes(x = IMDB_Rating, y = fct_reorder(Series_Title, desc(IMDB_Rating)), fill = Star1)) +
+  geom_col() +
+  labs(title = "Top 10 IMDb Rated Movies and Their Protagonists", fill = "Protagonist") +
+  xlab("IMDb Rating") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+# There are 12 metascore that are 100, all 12 of them have male directors
+metatop12 %>% 
+  ggplot(aes(x = Meta_score, y = fct_reorder(Series_Title, desc(Meta_score)), fill = Director)) +
+  geom_col() +
+  labs(title = "Top 10 Meta Score Rated Movies and Their Directors", fill = "Director") +
+  xlab("Meta Score Rating") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+# 11 out of the 12 have male protagonists
+metatop12 %>% 
+  ggplot(aes(x = Meta_score, y = fct_reorder(Series_Title, desc(Meta_score)), fill = Star1)) +
+  geom_col() +
+  labs(title = "Top 10 Mera Score Rated Movies and Their Protagonists", fill = "Protagonist") +
+  xlab("Meta Score Rating") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+# For movies that made the most money, all directors male
+imdbrevtop10 %>%
+  ggplot(aes(x = money, y = fct_reorder(Series_Title, desc(money)), fill = Director)) +
+  geom_col() +
+  labs(title = "Top 10 Highest Profit Movies and Their Directors", fill = "Director") +
+  xlab("Profit") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+# For movies that made the most money, 8 out of 10 protagonists are male
+imdbrevtop10 %>%
+  ggplot(aes(x = money, y = fct_reorder(Series_Title, desc(money)), fill = Star1)) +
+  geom_col() +
+  labs(title = "Top 10 Highest Profit Movies and Their Protagonists", fill = "Protagonist") +
+  xlab("Profit") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+# For the longest movies, all directors male
+durationtop10 %>%
+  ggplot(aes(x = duration, y = fct_reorder(Series_Title, desc(duration)), fill = Director)) +
+  geom_col() +
+  labs(title = "Top 10 Longest Movies and Their Directors", fill = "Director") +
+  xlab("Duration") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+# For the longest movies, all male protagonists
+durationtop10 %>%
+  ggplot(aes(x = duration, y = fct_reorder(Series_Title, desc(duration)), fill = Star1)) +
+  geom_col() +
+  labs(title = "Top 10 Longest Movies and Their Protagonists", fill = "Protagonist") +
+  xlab("Duration") +
+  ylab("Title") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+```
+
+```{r}
+academy_awards <- read_excel("oscars 2.xlsx")
+head(academy_awards)
+academy_awards %>%
+  count(gender)
+```
+
+This dataset has information on the Oscar Academy Awards from 1927 to 2020. The data was collected by Dharmik Donga, who wanted to visualize the diversity in academy awards. The variables include the film name, the year the film was created, Oscar Ceremony number, category for which it was nominated, gender (!!), race, and winner (True for winners, False for nominees). Of course, gender is our ideal variable here, so I would like to visualize something with gender. There are 10396 observations of 9 variables. 
+
+```{r}
+# Filter to get only winners of the academy award, 2357 total.
+winners <- academy_awards %>%
+  subset(winner == "TRUE") %>%
+  mutate(gender1 = as.factor(gsub("female","Female",gender)))
+head(winners)
+
+winners %>%
+  count(gender1)
+
+awards <- academy_awards %>%
+  mutate(gender1 = as.factor(gsub("female","Female",gender)))
+
+awards %>%
+  count(gender1)
+
+# looking at the winners, we can see that the percentage of female winners increases out of total winners over time
+winners %>%
+  ggplot(aes(x = year_film, fill = gender1)) +
+  geom_bar() +
+  labs(title = "Awards Won Each Year 1927-2020 Separated by Gender", fill = "Gender") +
+  xlab("Year") +
+  ylab("") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+mosaicstuff <- ggplot(data = winners) +
+  geom_mosaic(aes(x = product(year_film), fill = gender1)) +
+  labs(title = "Female Percentage of Awards Won", fill = "Gender") +
+  xlab("Year") +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+mosaicstuff
+```
+
