@@ -1,0 +1,121 @@
+---
+title: "Movies"
+author: "Amalin Sorajja"
+date: "2023-09-21"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(forcats)
+library(RColorBrewer)
+
+# movies & credits datasets are from the same zip file, both with information on the same 45476 observations 
+movies <- read_csv("/Users/mattu/Desktop/Projects in Data Science /Input/movies_metadata.csv") # includes stringified JSON objects in some columns
+credits <- read.csv("/Users/mattu/Desktop/Projects in Data Science /Input/credits.csv", stringsAsFactors = FALSE) # includes two columns which are stringified JSON objects (includes gender)
+```
+
+> This second code chunk is parsing data from the credits.csv column labeled "crew" and includes information about production positions of the film including gender and department. Then, I merged with the movies dataset to get budget and revenue. 
+
+```{r}
+parse_crew <- function(crew_text) {
+  text <- 
+    sub("\\£\\$\\£", "",    #drop the first one
+        gsub("\'|\"|\\[|\\]|\\{|\\}|,", "",
+             gsub("\'credit_id\':|\'department\':|\'gender\':|\'id\':|\'job\':|\'name\':|\'profile_path\':", 
+                  "£$£", 
+                  crew_text)
+        )
+    )
+  
+  data <- data.frame(matrix(
+    trimws(unlist(
+        strsplit(text, "\\£\\$\\£")
+        )), 
+    ncol = 7, byrow = TRUE), stringsAsFactors = FALSE)
+  
+  names(data) <- c("credit_id", "department", "gender", "id", "job", "name", "profile_path")
+  
+  return(data %>% select(credit_id, department, gender, id, job, name))
+}
+
+num_batches <- 50
+batch_interval <- ceiling(nrow(credits) / num_batches)
+batch_brackets <- 0:num_batches * batch_interval
+batch_brackets[num_batches+1] <- nrow(credits)
+batch_brackets[1] <- 1
+
+crew_data <- data.frame()
+for(b_i in 1:num_batches){
+  
+  batch_data <- data.frame()
+  for(b2_i in batch_brackets[b_i]:(batch_brackets[b_i+1]-1)){
+    #print(b2_i)
+    this_crew <- parse_crew(credits$crew[b2_i])
+    if(nrow(this_crew) > 0){
+      this_crew$movie_id <- as.double(credits$id[b2_i])
+      batch_data <- rbind(batch_data, this_crew)
+    }
+  }
+  crew_data <- rbind(crew_data, batch_data)
+  #print(paste0("    done batch ", b_i))
+}
+
+crew_data_plus <- 
+  left_join(crew_data, 
+            movies %>% select(id, genres, title, budget, revenue, vote_count, vote_average),
+            by=c("movie_id" = "id"))
+```
+
+> I also included the genres variable (string), which should be easy to parse separately if we want to investigate. But, one thing at a time for now :)
+
+```{r}
+crew_data_plus %>% 
+  summarise(unique(department))
+```
+```{r}
+table(crew_data_plus$department)
+```
+
+
+```{r fig.alt = "A histogram chart that shows the distribution of various departments in the movie business which are stratified by gender and shown with two colors for females and males."}
+
+crew_data_plus$gender[crew_data_plus$gender==1] <- "Female"
+crew_data_plus$gender[crew_data_plus$gender==2] <- "Male"
+
+crew_data_plus %>% 
+  filter(department != "Actors",
+         department != "Lighting",
+         department != "Visual Effects",
+         gender != 0) %>% 
+  ggplot(aes(x = fct_infreq(department), fill = gender))+
+  geom_bar()+
+  ggtitle("Department Gender Distribution")+
+  scale_fill_brewer(palette = "Dark2")+
+  labs(fill = "Gender") +
+  theme_minimal()+
+  xlab("Department")+
+  ylab("")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme(panel.grid.major.x = element_blank())
+
+  #group_by(department, gender) %>%
+  #summarize(count = n()) %>%
+  #mutate(percentage = count / sum(count) * 100) %>%
+  #geom_text(aes(label = paste0(round(percentage), "%")), vjust = -0.5, size = 3) +
+
+
+```
+###Narrative
+
+I was looking at the variables that were available after Amalin has parsed this VERY complicated JSON into csv for us, and I saw that we had a gender variable. This is great for our purposes of comparing inequalities in the media between men and women. I knew I would use that variable but it was still unclear what would be my other variable. I decided it would be interesting to do basically "two" categorical variables. I then filtered out authors because the point of this visualization was about the crew and I filtered out departments that were not populated as much. With that in mind, and some initial exploratory analysis of the variables, I decided to answer the following question: What is the makeup of different "professions" in the movie business, regarding gender? 
+
+The x-axis shows the different types of departments in the dataset; there are 9 up there after I filtered out 3. The y-axis is simply the count of people in that department. The colors are done with colorblind friendly palette. 
+
+In terms over overall trends that I thought were important to point out where the fact that all of the departments besides Costume and Makeup were predominately employed by females but just barely, especially compared to the other categories. I would eventually want to annotate the graph to costume and makeup and see the percentage on top of the bars. 
+
+This a very important story to tell because it can help inform us what are the departments that are facing the most inequalities for women; subsequently, it can help inform us about where there should be more outreach and attention towards. It matters because if we want a society where one gender is not seeing more privilege this could be a place to start. This is a much more complext and multidimensional problem; however, this could be a starting point to draw attention. 
+
+
