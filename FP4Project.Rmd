@@ -1,0 +1,486 @@
+---
+title: "FP4"
+author: "Clarisa Gomez Faria, Amalin Sorajja, Mateo Useche"
+date: "2023-11-14"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(readxl)
+library(pandoc)
+library(tidyverse)
+library(jsonlite)
+library(ggmosaic)
+library(ggstats)
+# movies & credits datasets are from the same zip file, both with information on the same 45476 observations 
+movies <- read_csv("movies_metadata.csv") # includes stringified JSON objects in some columns
+credits <- read.csv("credits.csv", stringsAsFactors = FALSE) # includes two columns which are stringified JSON objects (includes gender)
+```
+> Motivation & Research Questions
+
+Our main goal of this project was to visualize observations in the data that show the differences of gender identities in the film industry. Our main question is if there exists disparities within either women or men groups. After familiarizing ourselves with the data, we asked more in-depth questions that involved dialogue proportions, budget and revenue, popularity, and distribution of roles in departments such as writing and directing. These research questions are:
+- How has the presence of women in key creative roles (directors, writers, and producers) in the film industry evolved over the past decade, and what are the current trends in terms of representation?
+- Are there any notable changes in the representation and dialogue of female characters in recent years, and how do these changes align with shifts in film budgets and revenue? Have initiatives like the Bechdel Test affected these trends?  
+- Is there a correlation between the amount of female crew and the amount of dialogue female characters have in films? Are there any noticeable trends in film budgets based on the gender composition of the creative team? Are films with more women in key roles allocated different budgets?
+
+> Data
+
+The data contains information on  45,000 movies released on or before July 2017, dating back to 1908. Data points include cast and crew information (gender), TMDB ratings, revenue and budget, movie genre, and release dates. The data was collected from Kaggle, where the user acquired datasets from MovieLens, a movie recommendation system, and TMDB, user editable database and provided datasets in a zip file. From there, we parsed and merged these datasets to get our final dataset of information including primary genres and main characters of the 45,000 movies. 
+
+Another dataset we found is from github, and contained information about the dialogue proportions on ~800 movies, which we were able to merge with the dataset we made from MovieLens and TMDB. We used an inner join so this new dataset would only contain the movies that were in both the metadataset and the the dialogue dataset, and ended up with ~800 observations. The dataset includes information about characters’ names, genders, ages, how many words they spoke in each film, as well as the release year of each film and how much money the film grossed.
+
+```{r}
+parse_cast <- function(cast_text) {
+  text <- 
+    sub("\\£\\$\\£", "",    #drop the first one
+        gsub("\'|\"|\\[|\\]|\\{|\\}|,", "",
+             gsub("\'cast_id\':|\'character\':|\'credit_id\':|\'gender\':|\'id\':|\'name\':|\'order\':|\'profile_path\':", 
+                  "£$£", 
+                  cast_text)
+        )
+    )
+  
+  data <- data.frame(matrix(
+    trimws(unlist(
+        strsplit(text, "\\£\\$\\£")
+        )), 
+    ncol = 8, byrow = TRUE), stringsAsFactors = FALSE)
+  
+  names(data) <- c("cast_id", "character", "credit_id", "gender", "id", "name", "order", "profile_path")
+  data$order <- as.numeric(data$order)
+  
+  return(data %>% select(cast_id, gender, id, name, order))
+}
+
+num_batches <- 50
+batch_interval <- ceiling(nrow(credits) / num_batches)
+batch_brackets <- 0:num_batches * batch_interval
+batch_brackets[num_batches+1] <- nrow(credits)
+batch_brackets[1] <- 1
+
+cast_data <- data.frame()
+for(b_i in 1:num_batches){
+  
+  batch_data <- data.frame()
+  for(b2_i in batch_brackets[b_i]:(batch_brackets[b_i+1]-1)){
+    #print(b2_i)
+    this_cast <- parse_cast(credits$cast[b2_i])
+    if(nrow(this_cast) > 0){
+      this_cast$movie_id <- as.double(credits$id[b2_i])
+      batch_data <- rbind(batch_data, this_cast)
+    }
+  }
+  cast_data <- rbind(cast_data, batch_data)
+  #print(paste0("    done batch ", b_i))
+}
+
+cast_data_plus <- 
+  left_join(cast_data, 
+            movies %>% select(id, title, genres, budget, revenue, vote_count, vote_average, popularity, runtime, release_date),
+            by=c("movie_id" = "id"))
+```
+This first code chunk is parsing data from the credits.csv column labeled "cast" and includes information about primary and secondary characters of the film including gender. Then, I merged with the movies dataset to get budget, revenue, genres, ratings, popularity, etc.
+
+```{r}
+parse_crew <- function(crew_text) {
+  text <- 
+    sub("\\£\\$\\£", "",    #drop the first one
+        gsub("\'|\"|\\[|\\]|\\{|\\}|,", "",
+             gsub("\'credit_id\':|\'department\':|\'gender\':|\'id\':|\'job\':|\'name\':|\'profile_path\':", 
+                  "£$£", 
+                  crew_text)
+        )
+    )
+  
+  data <- data.frame(matrix(
+    trimws(unlist(
+        strsplit(text, "\\£\\$\\£")
+        )), 
+    ncol = 7, byrow = TRUE), stringsAsFactors = FALSE)
+  
+  names(data) <- c("credit_id", "department", "gender", "id", "job", "name", "profile_path")
+  
+  return(data %>% select(credit_id, department, gender, id, job, name))
+}
+
+num_batches <- 50
+batch_interval <- ceiling(nrow(credits) / num_batches)
+batch_brackets <- 0:num_batches * batch_interval
+batch_brackets[num_batches+1] <- nrow(credits)
+batch_brackets[1] <- 1
+
+crew_data <- data.frame()
+for(b_i in 1:num_batches){
+  
+  batch_data <- data.frame()
+  for(b2_i in batch_brackets[b_i]:(batch_brackets[b_i+1]-1)){
+    #print(b2_i)
+    this_crew <- parse_crew(credits$crew[b2_i])
+    if(nrow(this_crew) > 0){
+      this_crew$movie_id <- as.double(credits$id[b2_i])
+      batch_data <- rbind(batch_data, this_crew)
+    }
+  }
+  crew_data <- rbind(crew_data, batch_data)
+  #print(paste0("    done batch ", b_i))
+}
+
+crew_data_plus <- 
+  left_join(crew_data, 
+            movies %>% select(id, genres, title, budget, revenue, vote_count, vote_average, popularity, runtime, release_date),
+            by=c("movie_id" = "id"))
+```
+This second code chunk is parsing data from the credits.csv column labeled "crew" and includes information about production positions of the film including gender and department. Then, I merged with the movies dataset to get budget, revenue, genres, ratings, popularity, etc. 
+```{r}
+cast_data_plus$gender[cast_data_plus$gender==0] <- "Unspecified" # changing numeric values to assigned categorical
+cast_data_plus$gender[cast_data_plus$gender==1] <- "Female"
+cast_data_plus$gender[cast_data_plus$gender==2] <- "Male"
+
+crew_data_plus$gender[crew_data_plus$gender==0] <- "Unspecified"
+crew_data_plus$gender[crew_data_plus$gender==1] <- "Female"
+crew_data_plus$gender[crew_data_plus$gender==2] <- "Male"
+
+cast_data_plus2 <- cast_data_plus %>% # parsing genres
+  mutate(genres = str_extract_all(genres, "\\b[A-Z]\\w*\\b") %>% lapply(toString)) %>% 
+  mutate(genres = str_split(genres, ", ")) %>%
+  unnest(genres)
+crew_data_plus2 <- crew_data_plus %>%
+  mutate(genres = str_extract_all(genres, "\\b[A-Z]\\w*\\b") %>% lapply(toString)) %>%
+  mutate(genres = str_split(genres, ", ")) %>%
+  unnest(genres)
+crew_data_plus3 <- crew_data_plus2 %>% # numbering genres 
+  group_by(movie_id, name, job) %>%
+  mutate(genre_order = rank(genres)) %>%
+  ungroup(movie_id, name, job)
+
+cast_data_plus3 <- cast_data_plus2 %>% 
+  group_by(movie_id, name) %>%
+  mutate(genre_order = rank(genres)) %>%
+  ungroup(movie_id, name)
+
+primary_genres_crew <- crew_data_plus3 %>% # only getting first genre
+  subset(genre_order == 1) %>%
+  filter(gender != "Unspecified") %>%
+  filter(genres != "")
+
+primary_genres <- cast_data_plus3 %>% # only first genre and top 3 primary characters
+  subset(genre_order == 1) %>%
+  filter(gender != "Unspecified") %>%
+  filter(order <= 2) %>%
+  filter(genres != "")
+
+primary_genres_mainchar <- cast_data_plus3 %>% # only first genre and only main character
+  subset(genre_order == 1) %>%
+  filter(gender != "Unspecified") %>%
+  filter(order == 0) %>%
+  filter(genres != "")
+
+write.csv(primary_genres_crew, file = "crew_data.csv", row.names = FALSE)
+write.csv(primary_genres_mainchar, file = "cast_data.csv", row.names = FALSE)
+write.csv(primary_genres, file = "castTop.csv", row.names = FALSE)
+```
+
+```{r}
+crew <- read_csv("crew_data.csv")
+cast <- read_csv("cast_data.csv")
+movie_dialogue <- read_csv("movie_dialogue.csv")
+cast_top3 <- read_csv("castTop.csv")
+```
+
+```{r}
+unique_movie_dialogue <- movie_dialogue %>%
+  distinct(title, .keep_all = TRUE)
+
+unique_cast <- cast %>%
+  distinct(title, .keep_all = TRUE)
+
+merged_data <- unique_movie_dialogue %>% # joining new dialogue dataset with previously cleaned cast dataset of main characters
+  left_join(unique_cast, by = "title")
+
+write.csv(merged_data, "cast_dialogue.csv", row.names = FALSE)
+
+cast_dialogue <- read_csv("cast_dialogue.csv")
+```
+
+```{r}
+unique_cast_top3 <- cast_top3 %>%
+  distinct(title, name, .keep_all = TRUE)
+
+merged_data2 <- unique_cast_top3 %>%
+  left_join(movie_dialogue, by = "title") # joining new dialogue dataset with previously cleaned cast dataset of top 3 main characters
+
+write.csv(merged_data2, "cast_dialogue_top3.csv", row.names = FALSE)
+
+cast3_dialogue <- read_csv("cast_dialogue_top3.csv")
+```
+
+```{r}
+dialogue <- readr::read_csv("movie_dialogue.csv")
+# this is the data of movie dialogues straight from the internet 
+
+crew <- readr::read_csv("crew_data.csv")
+# this is the data sets amalin already cleaned to have the primary genres only 
+
+result <- inner_join(select(dialogue, title, total_prop_men, total_prop_women), crew, by = "title")
+# joining the dialogue and crew data set to have one data set that includes information about the movie, the genders of the crew, and the proportion of dialogue of each gender 
+```
+
+```{r}
+unique_titles_count <- result %>% 
+  distinct(title) %>%
+  nrow()
+
+print(unique_titles_count)
+
+# checking how many movies the final data set will have (smaller cause is joining the crew data set and the dialogue data set just by the titles that exist in both)
+
+result_new <- result %>%
+  group_by(title) %>%
+  mutate(
+    total_crew = n(),
+    crew_male_prop = sum(gender == "Male") / total_crew,
+    crew_female_prop = sum(gender == "Female") / total_crew
+  )
+
+# calculating proportions of genders in the crew for each movie 
+
+# Selecting just the columns i want and arrange them in order
+clean_results <- result_new %>%
+  select(
+    title, 
+    total_prop_men,
+    total_prop_women,
+    job, 
+    department, 
+    gender, 
+    name, 
+    crew_male_prop,
+    crew_female_prop,
+    genres, 
+    budget, 
+    revenue, 
+    popularity, 
+    release_date,
+  )
+
+write.csv(clean_results, file = "new_crew_and_dialogue.csv", row.names = FALSE)
+
+# just certain crew roles  
+topcrew_only <- result %>%
+  filter(department %in% c("Writing", "Directing", "Production")) %>%
+  group_by(title) %>%
+  mutate(
+    total_crew = n(),
+    crew_male_prop = sum(gender == "Male") / total_crew,
+    crew_female_prop = sum(gender == "Female") / total_crew
+  )
+
+
+TOPcrew_results <- topcrew_only %>%
+  select(
+    title, 
+    total_prop_men,
+    total_prop_women,
+    job, 
+    department, 
+    gender, 
+    name, 
+    crew_male_prop,
+    crew_female_prop,
+    genres, 
+    budget, 
+    revenue, 
+    popularity, 
+    release_date,
+  )
+
+write.csv(TOPcrew_results, file = "TOPcrew_results.csv", row.names = FALSE)
+```
+
+```{r}
+#Cleaning 
+merged_data2$release_date <- as.Date(merged_data2$release_date)
+merged_data2$year <- year(merged_data2$release_date)
+#bechdel test came out in 1985
+clean_merge <- merged_data2 %>% 
+  mutate(binary = factor(binary))
+```
+
+```{r}
+#Intermediate Presentation Visualizations
+
+#Scatter of bechdel test and proportion of women dialogue 
+clean_merge %>%
+  filter(!is.na(binary)) %>%
+  ggplot(aes(x = year, y = total_prop_women, color = binary)) +
+  geom_point() +
+  labs(title = "Proportion of Women Dialogue & Bechdel Test", x = "Year", y = "", color = "Bechdel Test") +
+  theme_minimal() +
+  scale_color_manual(values = c("blue4", "lightblue"))+
+  geom_vline(xintercept = 1985, linetype = "dashed", color = "red") +
+  annotate(geom = "text", x = 1950, y = 0.95, label = "37.5% Passed Bechdel", color = "blue4", size = 3)+
+  annotate(geom = "text", x = 2000, y = 0.95, label = "40.8% Passed Bechdel", color = "blue4", size = 3)+
+  theme(plot.background = element_rect(fill = "seashell"))
+
+clean_merge %>%
+  filter(between(year, 1980, 2018), !is.na(total_prop_women)) %>%
+  ggplot(aes(x = year, y = revenue / 1000, fill = binary)) +
+  geom_col(position = position_dodge(width = 0.8)) +  
+  labs(title = "Revenue and Bechdel Test", x = "Year", y = "Revenue (in thousands)", fill = "Bechdel Test") +
+  scale_x_continuous(breaks = seq(1980, 2018, by = 5)) +
+  scale_fill_manual(values = c("lightpink", "deeppink")) +  
+  theme_minimal() +
+  theme(legend.position = "bottom", legend.title = element_text(size = 12)) +
+  theme(axis.text.x = element_text(size = 10, angle = 45, hjust = 1)) +
+  theme(axis.text.y = element_text(size = 10)) +
+  theme(axis.title = element_text(size = 12),
+        plot.background = element_rect(fill = "seashell"))
+
+clean_merge %>%
+  filter(between(year, 1980, 2018), !is.na(total_prop_women)) %>%
+  ggplot(aes(x = year, y = budget.x / 1000, fill = binary)) +
+  geom_col(position = position_dodge(width = 0.8)) + 
+  labs(title = "Budget and Bechdel Test", x = "Year", y = "Budget (in thousands)", fill = "Bechdel Test") +
+  scale_x_continuous(breaks = seq(1980, 2018, by = 5)) +
+  scale_fill_manual(values = c("lightpink", "deeppink")) +  
+  theme_minimal() +
+  theme(legend.position = "bottom", legend.title = element_text(size = 12)) +
+  theme(axis.text.x = element_text(size = 10, angle = 45, hjust = 1)) +
+  theme(axis.text.y = element_text(size = 10)) +
+  theme(axis.title = element_text(size = 12),
+        plot.background = element_rect(fill = "seashell"))
+```
+
+We were interested in how the proportion of women dialogue evolves through time. To be able to compare the results, we annotated the graph with a percentage of movies that passed vs failed the Bechdel test. The blue dotted line represents 1985 which is the year the Bechdel Test was created. We can see that there is only a marginal increase in percentage of movies that passed after the creation of the test which can potentially highlight a lack of association between movies having higher proportion of women and the passing of the Bechdel test. 
+
+Again, we were interested in the changes over time that female representation could have on a movie's revenue. We use the Bechdel test as a proxy for female representation and visualize revenues over the years. The general trend is that movies that fail the test, meaning less female representation, make less revenue – on average. However, we do see that movies that pass increase past 1990, but some of that count could be biased by a higher overall amount of movies made. 
+
+Doing a similar analysis to the graph above, we are showing the relationship between budget and the Bechdel test over the years. What surprised me was that compared to revenue, this graph seems to show that the budget is more “equal” for movies that passed or failed the Bechdel test. In the revenue graph, the differences in revenue based on failing the bechdel test were stark. 
+
+```{r}
+crew_data <- crew %>%
+  mutate(year = format(as.Date(crew$release_date, format="%Y/%m/%d"),"%Y"))
+
+cast_stuff <- cast %>%
+    mutate(year = format(as.Date(cast$release_date, format="%Y/%m/%d"),"%Y"))
+
+past2000 <- crew_data %>%
+  filter(year >= 2005) %>%
+  filter(year < 2018,
+         department != "Actors")
+
+directors <- past2000 %>%
+  filter(job == "Director")
+writers <- past2000 %>%
+  filter(job == "Writer")
+
+keyroles <- crew_data %>%
+  filter(year >= 1968) %>%
+  filter(year < 2018) %>%
+  filter(department != "Actors") %>%
+  filter(department != "Art") %>%
+  filter(department != "Camera") %>%
+  filter(department != "Lighting") %>%
+  filter(department != "Costume & Make-Up") %>%
+  filter(department != "Editing") %>%
+  filter(department != "Sound") %>%
+  filter(department != "Visual Effects") %>%
+  filter(department != "Crew") 
+
+past2000 %>%
+  ggplot() +
+  aes(x = year, fill = gender, by = year) +
+  geom_bar(position = position_fill(reverse = TRUE), width = 0.9) +
+  facet_wrap(~ department) +
+  theme_minimal() + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) +
+  scale_fill_manual(values = c("deeppink","pink")) +
+  ylab("proportion") +
+  labs(title = "Gender Proportions of Departments in the Film Industry (2005-2017)") +
+  theme(axis.text.x = element_text(family = 'mono', angle = 80, size = 7, hjust = 0.8),
+        plot.title = element_text(face = "bold", family = "times", vjust = 0.05, color = "deeppink4"),
+        strip.text.x = element_text(face = "bold.italic", family = "times", color = "grey40"),
+        axis.title = element_text(family = "times", size = 10, face = "bold", color = "deeppink4"),
+        axis.title.y = element_text(vjust = 2),
+        plot.background = element_rect(fill = "seashell"),
+        legend.title = element_text(family = "times", face = "bold",color = "deeppink4"),
+        legend.text = element_text(family = "times", color = "grey20"))
+keyroles1 <- keyroles %>%
+  mutate(year = as.numeric(year))
+
+keyroles1 %>%
+  ggplot() +
+  aes(x = year, fill = gender) +
+  geom_bar(position = position_fill(reverse = TRUE), width = 0.8) +
+  facet_wrap(~ department) +
+  theme_minimal() + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  scale_fill_manual(values = c("deeppink","pink")) +
+  ylab("proportion") +
+  labs(title = "Gender Proportions of Key Creative Roles in the Film Industry (1970-2017)") +
+  theme(axis.text.x = element_text(family = 'mono', angle = 80, size = 7, hjust = 0.8),
+        plot.title = element_text(face = "bold", family = "times", vjust = 0.05, color = "deeppink4"),
+        strip.text.x = element_text(face = "bold.italic", family = "times", color = "grey40"),
+        axis.title = element_text(family = "times", size = 10, face = "bold", color = "deeppink4"),
+        axis.title.y = element_text(vjust = 2),
+        plot.background = element_rect(fill = "seashell"),
+        legend.title = element_text(family = "times", face = "bold",color = "deeppink4"),
+        legend.text = element_text(family = "times", color = "grey20"))
+
+cast2000 <- cast_stuff %>%
+  filter(year >= 2005) %>%
+  filter(year < 2018) 
+
+cast_genres <- cast_stuff %>%
+  filter(genres != "War") %>%
+  filter(genres != "Western") %>%
+  filter(genres != "Movie") %>%
+  filter(genres != "Music") %>%
+  filter(genres != "History") %>%
+  filter(genres != "Foreign") %>%
+  filter(genres != "Mystery") %>%
+  filter(genres != "Family") %>%
+  filter(genres != "Thriller") %>%
+  filter(genres != "Fantasy") %>%
+  filter(genres != "Animation") %>%
+  filter(genres != "Documentary") %>%
+  filter(genres != "Romance") %>%
+  filter(genres != "Crime") %>%
+  filter(genres != "Fiction") %>%
+  filter(genres != "Horror") %>%
+  filter(year >= 1968) %>%
+  filter(year < 2018)
+
+castgenre <- cast_genres %>%
+  mutate(year = as.numeric(year))
+
+castgenre %>%
+  ggplot() +
+  aes(x = year, fill = gender) +
+  geom_bar(position = position_fill(reverse = TRUE), width = 0.8) +
+  facet_wrap(~ genres) +
+  theme_minimal() + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  scale_fill_manual(values = c("blue4","lightblue")) +
+  ylab("proportion") +
+  labs(title = "Gender Proportions of Protagonists in the Film Industry (1970-2017)", fill = "protagonist \ngender") +
+  theme(axis.text.x = element_text(family = 'mono', angle = 80, size = 7, hjust = 0.8),
+        plot.title = element_text(face = "bold", family = "times", vjust = 0.05, color = "navyblue"),
+        strip.text.x = element_text(face = "bold.italic", family = "times", color = "grey40"),
+        axis.title = element_text(family = "times", size = 10, face = "bold", color = "navyblue"),
+        axis.title.y = element_text(vjust = 2),
+        plot.background = element_rect(fill = "seashell"),
+        legend.title = element_text(family = "times", face = "bold",color = "navyblue"),
+        legend.text = element_text(family = "times", color = "grey20"))
+```
+
+We are interested in seeing if the proportion of female crew members has increased or changed recently. In the first visualization, we have a stacked bar plot that shows the proportion of female and male crew members among each department of film crews from the years 2005-2017. Overall, departments in the film industry are male-dominated, with the exception of the Costume & Make-Up department, and we do not see much change from 2005-2017 in terms of gender proportions of departments. 
+
+Since there is not much change in recent years, we decided to take a look at the key creative roles (leadership roles) of producing, directing, and writing dating back to 1968 to get a sense of when female proportions began to increase. After 1970, we can see a steady increase in female proportions in each of these key roles. 
+
+After determining that the proportion of female crew members in key roles steadily increases after 1970, we want to look at how this increase might change gender representations in film. To do this, we visualized the proportion of movies that had male and female protagonists from over the same year range. Though we did have an increase in female crew members of key roles, we are not seeing as much of an increase for female protagonists movies. 
